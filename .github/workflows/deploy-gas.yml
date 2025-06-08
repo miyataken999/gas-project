@@ -1,0 +1,65 @@
+name: Deploy to Google Apps Script
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        npm ci
+        npm install -g @google/clasp
+
+    - name: Setup Clasp credentials
+      run: |
+        if [ -z "${{ secrets.CLASP_TOKEN }}" ]; then
+          echo "Error: CLASP_TOKEN secret not found"
+          exit 1
+        fi
+        echo '${{ secrets.CLASP_TOKEN }}' > ~/.clasprc.json
+        chmod 600 ~/.clasprc.json
+
+    - name: Validate authentication
+      run: |
+        clasp list || (echo "Authentication failed" && exit 1)
+
+    - name: Validate Clasp configuration
+      run: |
+        if [ ! -f .clasp.json ]; then
+          echo "Error: .clasp.json not found. Please create the GAS project first."
+          echo "Run: clasp create --type standalone --title 'Your Project'"
+          exit 1
+        fi
+        echo "Found .clasp.json:"
+        cat .clasp.json
+
+    - name: Push to Google Apps Script
+      run: |
+        echo "Pushing files to Google Apps Script..."
+        clasp push --force
+
+    - name: Deploy to GAS (on main branch only)
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      run: |
+        clasp deploy --description "Auto-deploy from GitHub Actions - $(date)"
+      continue-on-error: true
+
+    - name: Get project info
+      run: |
+        echo "GAS Project URL:"
+        clasp open --webapp || clasp open || echo "Could not open project URL"
