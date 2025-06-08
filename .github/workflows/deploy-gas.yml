@@ -43,35 +43,47 @@ jobs:
         # Create backup of original token
         cp ~/.clasprc.json ~/.clasprc.json.backup
         
-        # Validate token structure and convert if needed
+        # Validate token structure - clasp expects nested format with tokens.default
         echo "🔍 Analyzing token format..."
         if jq -e '.tokens.default' ~/.clasprc.json >/dev/null 2>&1; then
-          echo "📋 Found nested token format (tokens.default)"
-          echo "🔄 Converting to flat format for GitHub Actions compatibility..."
+          echo "✅ Token is in correct nested format (tokens.default)"
           
-          # Extract the nested token and create flat format
-          jq '.tokens.default' ~/.clasprc.json > ~/.clasprc.json.tmp
-          
-          # Validate the converted token has required fields
-          if jq -e '.access_token and .refresh_token and .client_id' ~/.clasprc.json.tmp >/dev/null; then
-            mv ~/.clasprc.json.tmp ~/.clasprc.json
-            echo "✅ Token successfully converted to flat format"
+          # Validate the nested token has required fields
+          if jq -e '.tokens.default.access_token and .tokens.default.refresh_token and .tokens.default.client_id' ~/.clasprc.json >/dev/null; then
+            echo "✅ Token has all required nested fields"
           else
-            echo "❌ Converted token missing required fields"
-            rm -f ~/.clasprc.json.tmp
+            echo "❌ Token missing required nested fields"
+            echo "Required nested fields: tokens.default.access_token, tokens.default.refresh_token, tokens.default.client_id"
+            echo "Available nested fields:"
+            jq -r '.tokens.default | keys[]' ~/.clasprc.json
             exit 1
           fi
         else
-          echo "📋 Token already in flat format"
-        fi
-        
-        # Final validation
-        if ! jq -e '.access_token and .refresh_token and .client_id' ~/.clasprc.json >/dev/null; then
-          echo "❌ Token missing required fields"
-          echo "Required fields: access_token, refresh_token, client_id"
-          echo "Available fields:"
-          jq -r 'keys[]' ~/.clasprc.json
-          exit 1
+          echo "❌ Token is in flat format, but clasp expects nested format"
+          echo "🔄 Converting flat format to nested format..."
+          
+          # Check if it's a flat format token
+          if jq -e '.access_token and .refresh_token and .client_id' ~/.clasprc.json >/dev/null; then
+            echo "📋 Converting flat token to nested format for clasp compatibility..."
+            
+            # Create nested format
+            jq '{tokens: {default: .}}' ~/.clasprc.json > ~/.clasprc.json.tmp
+            
+            # Validate the conversion worked
+            if jq -e '.tokens.default.access_token' ~/.clasprc.json.tmp >/dev/null; then
+              mv ~/.clasprc.json.tmp ~/.clasprc.json
+              echo "✅ Token successfully converted to nested format"
+            else
+              echo "❌ Failed to convert token to nested format"
+              rm -f ~/.clasprc.json.tmp
+              exit 1
+            fi
+          else
+            echo "❌ Token is neither valid flat nor nested format"
+            echo "Available fields:"
+            jq -r 'keys[]' ~/.clasprc.json
+            exit 1
+          fi
         fi
         
         echo "✅ Clasp credentials configured and validated"
@@ -85,9 +97,9 @@ jobs:
           # Check token structure based on actual format
           echo "📋 Token structure validation:"
           
-          # Check if token is in nested or flat format
+          # Clasp expects nested format: tokens.default
           if jq -e '.tokens.default' ~/.clasprc.json >/dev/null 2>&1; then
-            echo "📋 Validating nested token format"
+            echo "✅ Token is in correct nested format for clasp"
             if jq -e '.tokens.default.access_token' ~/.clasprc.json >/dev/null 2>&1; then
               echo "✅ Has access_token (nested)"
             else
@@ -106,23 +118,9 @@ jobs:
               echo "❌ Missing client_id (nested)"
             fi
           else
-            echo "📋 Validating flat token format"
+            echo "❌ Token not in expected nested format (tokens.default)"
             if jq -e '.access_token' ~/.clasprc.json >/dev/null 2>&1; then
-              echo "✅ Has access_token (flat)"
-            else
-              echo "❌ Missing access_token (flat)"
-            fi
-            
-            if jq -e '.refresh_token' ~/.clasprc.json >/dev/null 2>&1; then
-              echo "✅ Has refresh_token (flat)"
-            else
-              echo "❌ Missing refresh_token (flat)"
-            fi
-            
-            if jq -e '.client_id' ~/.clasprc.json >/dev/null 2>&1; then
-              echo "✅ Has client_id (flat)"
-            else
-              echo "❌ Missing client_id (flat)"
+              echo "⚠️  Token appears to be in flat format, which clasp doesn't support"
             fi
           fi
           
