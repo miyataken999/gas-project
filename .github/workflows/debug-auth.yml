@@ -1,0 +1,125 @@
+name: Debug Authentication
+
+on:
+  workflow_dispatch:  # Manual trigger only
+  push:
+    branches: [ debug-auth ]
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Install Clasp and tools
+      run: |
+        npm install -g @google/clasp
+        sudo apt-get update && sudo apt-get install -y jq
+        echo "📦 Installed clasp version: $(clasp --version)"
+
+    - name: Debug token structure
+      run: |
+        echo "🔍 Debugging authentication token structure..."
+        
+        if [ -z "${{ secrets.CLASP_TOKEN }}" ]; then
+          echo "❌ CLASP_TOKEN secret not found or empty"
+          exit 1
+        fi
+        
+        echo "✅ CLASP_TOKEN secret is present"
+        
+        # Create the token file
+        echo '${{ secrets.CLASP_TOKEN }}' > ~/.clasprc.json
+        chmod 600 ~/.clasprc.json
+        
+        echo "📋 Token file created. Analyzing structure..."
+        
+        # Check if it's valid JSON
+        if jq empty ~/.clasprc.json 2>/dev/null; then
+          echo "✅ Token is valid JSON"
+        else
+          echo "❌ Token is not valid JSON"
+          echo "Raw content preview (first 100 chars):"
+          head -c 100 ~/.clasprc.json
+          exit 1
+        fi
+        
+        # Check for required fields
+        echo "🔍 Checking token structure:"
+        
+        if jq -e '.tokens' ~/.clasprc.json >/dev/null; then
+          echo "✅ Has 'tokens' object"
+          
+          if jq -e '.tokens.default' ~/.clasprc.json >/dev/null; then
+            echo "✅ Has 'tokens.default' object"
+            
+            # Check individual fields
+            for field in access_token refresh_token client_id client_secret; do
+              if jq -e ".tokens.default.$field" ~/.clasprc.json >/dev/null; then
+                echo "✅ Has $field"
+              else
+                echo "❌ Missing $field"
+              fi
+            done
+            
+          else
+            echo "❌ Missing 'tokens.default' object"
+            echo "Available keys in tokens:"
+            jq -r '.tokens | keys[]' ~/.clasprc.json
+          fi
+          
+        else
+          echo "❌ Missing 'tokens' object"
+          echo "Available top-level keys:"
+          jq -r 'keys[]' ~/.clasprc.json
+        fi
+
+    - name: Test Clasp basic functionality
+      run: |
+        echo "🧪 Testing basic Clasp functionality..."
+        
+        # Test version command (should work without auth)
+        if clasp --version; then
+          echo "✅ Clasp version command works"
+        else
+          echo "❌ Clasp version command failed"
+        fi
+        
+        # Test if clasp can read the config
+        echo "🔍 Testing clasp with our credentials..."
+        
+        # Try a simple auth-required command with timeout
+        timeout 30 clasp whoami || echo "⚠️ whoami command failed or timed out"
+
+    - name: Test project-specific operations
+      run: |
+        echo "🎯 Testing project-specific operations..."
+        
+        if [ -f .clasp.json ]; then
+          echo "✅ Found .clasp.json"
+          cat .clasp.json
+          
+          echo "🚀 Attempting to push (this is where auth issues typically occur)..."
+          timeout 60 clasp push --force || echo "❌ Push failed or timed out"
+          
+        else
+          echo "❌ No .clasp.json found"
+        fi
+
+    - name: Show environment info
+      run: |
+        echo "🌍 Environment information:"
+        echo "Node version: $(node --version)"
+        echo "NPM version: $(npm --version)"
+        echo "Clasp version: $(clasp --version)"
+        echo "Working directory: $(pwd)"
+        echo "Home directory: $HOME"
+        echo "Clasp config file exists: $([ -f ~/.clasprc.json ] && echo 'YES' || echo 'NO')"
+        echo "Project config exists: $([ -f .clasp.json ] && echo 'YES' || echo 'NO')"
