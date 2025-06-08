@@ -24,6 +24,9 @@ jobs:
       run: |
         npm ci
         npm install -g @google/clasp
+        
+        # Ensure jq is available for JSON processing
+        sudo apt-get update && sudo apt-get install -y jq
 
     - name: Setup Clasp credentials
       run: |
@@ -31,20 +34,81 @@ jobs:
           echo "Error: CLASP_TOKEN secret not found"
           exit 1
         fi
+        
+        echo "🔧 Setting up Clasp credentials..."
         echo '${{ secrets.CLASP_TOKEN }}' > ~/.clasprc.json
         chmod 600 ~/.clasprc.json
-        echo "✅ Clasp credentials configured"
         
-        # Try to refresh the token if needed
-        clasp login --no-localhost 2>/dev/null || echo "Token refresh attempt completed"
+        # Create backup of original token
+        cp ~/.clasprc.json ~/.clasprc.json.backup
+        
+        # Validate token structure and convert if needed
+        echo "🔍 Analyzing token format..."
+        if jq -e '.tokens.default' ~/.clasprc.json >/dev/null 2>&1; then
+          echo "📋 Found nested token format (tokens.default)"
+          echo "🔄 Converting to flat format for GitHub Actions compatibility..."
+          
+          # Extract the nested token and create flat format
+          jq '.tokens.default' ~/.clasprc.json > ~/.clasprc.json.tmp
+          
+          # Validate the converted token has required fields
+          if jq -e '.access_token and .refresh_token and .client_id' ~/.clasprc.json.tmp >/dev/null; then
+            mv ~/.clasprc.json.tmp ~/.clasprc.json
+            echo "✅ Token successfully converted to flat format"
+          else
+            echo "❌ Converted token missing required fields"
+            rm -f ~/.clasprc.json.tmp
+            exit 1
+          fi
+        else
+          echo "📋 Token already in flat format"
+        fi
+        
+        # Final validation
+        if ! jq -e '.access_token and .refresh_token and .client_id' ~/.clasprc.json >/dev/null; then
+          echo "❌ Token missing required fields"
+          echo "Required fields: access_token, refresh_token, client_id"
+          echo "Available fields:"
+          jq -r 'keys[]' ~/.clasprc.json
+          exit 1
+        fi
+        
+        echo "✅ Clasp credentials configured and validated"
 
     - name: Validate authentication
       run: |
         echo "🔍 Verifying Clasp setup..."
         if [ -f ~/.clasprc.json ]; then
           echo "✅ Credentials file exists"
-          # Try a simple operation to verify token works
-          timeout 30 clasp list 2>/dev/null || echo "⚠️ List operation timeout/error (may be normal)"
+          
+          # Check token structure more thoroughly
+          echo "📋 Token structure validation:"
+          if jq -e '.tokens.default.access_token' ~/.clasprc.json >/dev/null 2>&1; then
+            echo "✅ Has access_token"
+          else
+            echo "❌ Missing access_token"
+          fi
+          
+          if jq -e '.tokens.default.refresh_token' ~/.clasprc.json >/dev/null 2>&1; then
+            echo "✅ Has refresh_token"
+          else
+            echo "❌ Missing refresh_token"
+          fi
+          
+          if jq -e '.tokens.default.client_id' ~/.clasprc.json >/dev/null 2>&1; then
+            echo "✅ Has client_id"
+          else
+            echo "❌ Missing client_id"
+          fi
+          
+          # Test clasp functionality with a simple command
+          echo "🧪 Testing clasp functionality..."
+          if timeout 30 clasp --version; then
+            echo "✅ Clasp version check successful"
+          else
+            echo "⚠️ Clasp version check failed or timed out"
+          fi
+          
         else
           echo "❌ Credentials file missing"
           exit 1
@@ -66,22 +130,43 @@ jobs:
         SCRIPT_ID=$(cat .clasp.json | grep scriptId | cut -d '"' -f 4)
         echo "Project Script ID: $SCRIPT_ID"
         
-        # Attempt push with retry logic
-        for i in {1..3}; do
-          echo "Attempt $i/3..."
-          if clasp push --force; then
-            echo "✅ Successfully pushed to GAS"
-            exit 0
-          else
-            echo "⚠️ Push attempt $i failed"
-            if [ $i -lt 3 ]; then
-              echo "Retrying in 10 seconds..."
-              sleep 10
-            fi
-          fi
-        done
+        # Strategy 1: Direct push with current token format
+        echo "🚀 Attempt 1: Direct push..."
+        if timeout 60 clasp push --force; then
+          echo "✅ Successfully pushed to GAS (direct method)"
+          exit 0
+        fi
         
-        echo "❌ All push attempts failed"
+        echo "⚠️ Direct push failed. Trying token refresh strategy..."
+        
+        # Strategy 2: Try to refresh the token first
+        echo "🔄 Attempt 2: Token refresh + push..."
+        if timeout 30 clasp login --no-localhost 2>/dev/null; then
+          echo "Token refresh completed"
+          if timeout 60 clasp push --force; then
+            echo "✅ Successfully pushed to GAS (after token refresh)"
+            exit 0
+          fi
+        fi
+        
+        echo "⚠️ Token refresh method failed. Trying alternative token format..."
+        
+        # Strategy 3: Try with nested token format (restore original)
+        echo "🔄 Attempt 3: Restore nested token format..."
+        if [ -f ~/.clasprc.json.backup ]; then
+          cp ~/.clasprc.json.backup ~/.clasprc.json
+          if timeout 60 clasp push --force; then
+            echo "✅ Successfully pushed to GAS (nested format)"
+            exit 0
+          fi
+        fi
+        
+        echo "❌ All push strategies failed"
+        echo "🔍 Final diagnostics:"
+        echo "Token file exists: $([ -f ~/.clasprc.json ] && echo 'YES' || echo 'NO')"
+        echo "Project config exists: $([ -f .clasp.json ] && echo 'YES' || echo 'NO')"
+        echo "Clasp version: $(clasp --version)"
+        
         exit 1
 
     - name: Deploy to GAS (on main branch only)

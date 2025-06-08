@@ -1,0 +1,39 @@
+name: Deploy to Google Apps Script (Simplified)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Install Clasp
+      run: |
+        npm install -g @google/clasp
+
+    - name: Setup authentication
+      run: |
+        echo '${{ secrets.CLASP_TOKEN }}' > ~/.clasprc.json
+        chmod 600 ~/.clasprc.json
+
+    - name: Push to GAS
+      run: |
+        echo "🚀 Starting deployment to Google Apps Script..."
+        clasp push --force || (echo "❌ Deployment failed" && exit 1)
+        echo "✅ Deployment successful!"
+
+    - name: Show project info
+      run: |
+        SCRIPT_ID=$(grep -o '"scriptId":"[^"]*"' .clasp.json | cut -d'"' -f4)
+        echo "📊 Deployed to: https://script.google.com/d/$SCRIPT_ID/edit"
