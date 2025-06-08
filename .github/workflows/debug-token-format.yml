@@ -1,0 +1,64 @@
+name: Debug Token Format
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install jq
+      run: sudo apt-get update && sudo apt-get install -y jq
+
+    - name: Debug Token Structure
+      run: |
+        echo "🔍 Debugging CLASP_TOKEN structure..."
+        
+        if [ -z "${{ secrets.CLASP_TOKEN }}" ]; then
+          echo "❌ CLASP_TOKEN secret not found"
+          exit 1
+        fi
+        
+        # Write token to file
+        echo '${{ secrets.CLASP_TOKEN }}' > ~/.clasprc.json
+        
+        echo "📋 Raw token structure:"
+        echo "Number of lines in token:"
+        echo '${{ secrets.CLASP_TOKEN }}' | wc -l
+        
+        echo "📋 Token keys at root level:"
+        jq -r 'keys[]' ~/.clasprc.json 2>/dev/null || echo "Failed to parse as JSON"
+        
+        echo "📋 Check if nested format exists:"
+        if jq -e '.tokens' ~/.clasprc.json >/dev/null 2>&1; then
+          echo "✅ Has .tokens"
+          if jq -e '.tokens.default' ~/.clasprc.json >/dev/null 2>&1; then
+            echo "✅ Has .tokens.default"
+            echo "📋 Nested token keys:"
+            jq -r '.tokens.default | keys[]' ~/.clasprc.json
+          else
+            echo "❌ No .tokens.default"
+          fi
+        else
+          echo "❌ No .tokens"
+        fi
+        
+        echo "📋 Check if flat format:"
+        if jq -e '.access_token' ~/.clasprc.json >/dev/null 2>&1; then
+          echo "✅ Has .access_token (flat format)"
+        else
+          echo "❌ No .access_token (flat format)"
+        fi
+        
+        echo "📋 Sample of token structure (first few characters only):"
+        jq '.' ~/.clasprc.json | head -10

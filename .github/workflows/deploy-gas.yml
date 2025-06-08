@@ -82,24 +82,48 @@ jobs:
         if [ -f ~/.clasprc.json ]; then
           echo "✅ Credentials file exists"
           
-          # Check token structure more thoroughly
+          # Check token structure based on actual format
           echo "📋 Token structure validation:"
-          if jq -e '.tokens.default.access_token' ~/.clasprc.json >/dev/null 2>&1; then
-            echo "✅ Has access_token"
-          else
-            echo "❌ Missing access_token"
-          fi
           
-          if jq -e '.tokens.default.refresh_token' ~/.clasprc.json >/dev/null 2>&1; then
-            echo "✅ Has refresh_token"
+          # Check if token is in nested or flat format
+          if jq -e '.tokens.default' ~/.clasprc.json >/dev/null 2>&1; then
+            echo "📋 Validating nested token format"
+            if jq -e '.tokens.default.access_token' ~/.clasprc.json >/dev/null 2>&1; then
+              echo "✅ Has access_token (nested)"
+            else
+              echo "❌ Missing access_token (nested)"
+            fi
+            
+            if jq -e '.tokens.default.refresh_token' ~/.clasprc.json >/dev/null 2>&1; then
+              echo "✅ Has refresh_token (nested)"
+            else
+              echo "❌ Missing refresh_token (nested)"
+            fi
+            
+            if jq -e '.tokens.default.client_id' ~/.clasprc.json >/dev/null 2>&1; then
+              echo "✅ Has client_id (nested)"
+            else
+              echo "❌ Missing client_id (nested)"
+            fi
           else
-            echo "❌ Missing refresh_token"
-          fi
-          
-          if jq -e '.tokens.default.client_id' ~/.clasprc.json >/dev/null 2>&1; then
-            echo "✅ Has client_id"
-          else
-            echo "❌ Missing client_id"
+            echo "📋 Validating flat token format"
+            if jq -e '.access_token' ~/.clasprc.json >/dev/null 2>&1; then
+              echo "✅ Has access_token (flat)"
+            else
+              echo "❌ Missing access_token (flat)"
+            fi
+            
+            if jq -e '.refresh_token' ~/.clasprc.json >/dev/null 2>&1; then
+              echo "✅ Has refresh_token (flat)"
+            else
+              echo "❌ Missing refresh_token (flat)"
+            fi
+            
+            if jq -e '.client_id' ~/.clasprc.json >/dev/null 2>&1; then
+              echo "✅ Has client_id (flat)"
+            else
+              echo "❌ Missing client_id (flat)"
+            fi
           fi
           
           # Test clasp functionality with a simple command
