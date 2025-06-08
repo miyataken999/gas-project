@@ -1,0 +1,14 @@
+{
+  "token": {
+    "access_token": "PLACEHOLDER_ACCESS_TOKEN",
+    "refresh_token": "PLACEHOLDER_REFRESH_TOKEN", 
+    "scope": "https://www.googleapis.com/auth/script.projects",
+    "token_type": "Bearer",
+    "expiry_date": 1640995200000
+  },
+  "oauth2ClientSettings": {
+    "clientId": "PLACEHOLDER_CLIENT_ID",
+    "clientSecret": "PLACEHOLDER_CLIENT_SECRET",
+    "redirectUri": "urn:ietf:wg:oauth:2.0:oob"
+  }
+}
