@@ -35,3 +35,6 @@ Thumbs.db
 # Build outputs
 dist/
 build/
+*.json
+GITHUB_SECRETS_SETUP_IMMEDIATE.md
+setup-github-secrets.sh

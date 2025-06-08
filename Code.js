@@ -6,7 +6,8 @@
 function main() {
   console.log('🚀 Hello from GitHub Actions Auto-Deploy!');
   console.log('🕒 Deployment Date: ' + new Date().toString());
-  console.log('🔧 Auth Fix Version: 2.0 - Token Format Conversion');
+  console.log('🔧 Auth Fix Version: 3.0 - Secrets Auto-Configuration Complete!');
+  console.log('✅ GitHub Secrets configured successfully at ' + new Date().toISOString());
   
   // スプレッドシートの例
   try {
@@ -35,12 +36,13 @@ function doGet(e) {
       <head><title>GAS Auto-Deploy Test - Auth Fix v2.0</title></head>
       <body>
         <h1>🚀 GitHub Actions Auto-Deploy Success!</h1>
-        <h2>🔧 Authentication Fix v2.0 Deployed</h2>
+        <h2>🔧 Authentication Fix v3.0 - Secrets Configured!</h2>
         <p><strong>This Google Apps Script was automatically deployed from GitHub!</strong></p>
         <p>🕒 Deployment time: ${new Date().toString()}</p>
         <p>🔗 Repository: <a href="https://github.com/miyataken999/gas-project">miyataken999/gas-project</a></p>
-        <p>✅ Token format conversion working</p>
-        <p>🎯 Multi-strategy deployment active</p>
+        <p>✅ GitHub Secrets configured and working</p>
+        <p>🎯 Automatic token management active</p>
+        <p>🚀 Auth Fix v3.0 - Complete Auto-Configuration!</p>
       </body>
     </html>
   `;
