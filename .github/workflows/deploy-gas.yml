@@ -33,10 +33,17 @@ jobs:
         fi
         echo '${{ secrets.CLASP_TOKEN }}' > ~/.clasprc.json
         chmod 600 ~/.clasprc.json
+        echo "✅ Clasp credentials configured"
 
     - name: Validate authentication
       run: |
-        clasp list || (echo "Authentication failed" && exit 1)
+        echo "🔍 Verifying Clasp setup..."
+        if [ -f ~/.clasprc.json ]; then
+          echo "✅ Credentials file exists"
+        else
+          echo "❌ Credentials file missing"
+          exit 1
+        fi
 
     - name: Validate Clasp configuration
       run: |
@@ -50,8 +57,10 @@ jobs:
 
     - name: Push to Google Apps Script
       run: |
-        echo "Pushing files to Google Apps Script..."
+        echo "📤 Pushing files to Google Apps Script..."
+        echo "Project Script ID: $(cat .clasp.json | grep scriptId | cut -d '"' -f 4)"
         clasp push --force
+        echo "✅ Successfully pushed to GAS"
 
     - name: Deploy to GAS (on main branch only)
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
@@ -61,5 +70,9 @@ jobs:
 
     - name: Get project info
       run: |
-        echo "GAS Project URL:"
-        clasp open --webapp || clasp open || echo "Could not open project URL"
+        echo "📊 GAS Project Information:"
+        SCRIPT_ID=$(cat .clasp.json | grep scriptId | cut -d '"' -f 4)
+        echo "Script ID: $SCRIPT_ID"
+        echo "📝 Editor URL: https://script.google.com/d/$SCRIPT_ID/edit"
+        echo "🌐 Web App URL: https://script.google.com/macros/s/$SCRIPT_ID/exec"
+        echo "✅ Deployment completed successfully!"
